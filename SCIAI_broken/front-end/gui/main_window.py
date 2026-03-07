@@ -20,27 +20,33 @@ class MainWindow(QMainWindow):
         try:
             # Create navigation bar
             self.navbar = NavBar(self.user)
-            if self.navbar.manage_users_btn:
+            if self.navbar.manage_users_btn and self.manage_users_view:
                 self.navbar.manage_users_btn.clicked.connect(lambda: [self.stack.setCurrentWidget(self.manage_users_view), self.navbar.set_manage_users_active()])
             self.navbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+            role = self.user.get("role", "viewer")
 
             # Create views
             self.home_view = HomeView()
             self.activity_view = ActivityLogView(self.db_conn)
-            self.manage_users_view = ManageUsersView()
-            self.security_view = SecurityLogView(self.user)
+
+            self.security_view = SecurityLogView(self.user) if role in ("admin", "operator") else None
+            self.manage_users_view = ManageUsersView() if role == "admin" else None
 
             # Page stack
             self.stack = QStackedWidget()
             self.stack.addWidget(self.home_view)
             self.stack.addWidget(self.activity_view)
-            self.stack.addWidget(self.manage_users_view)
-            self.stack.addWidget(self.security_view)
+            if self.security_view:
+                self.stack.addWidget(self.security_view)
+            if self.manage_users_view:
+                self.stack.addWidget(self.manage_users_view)
 
             # Connect navbar buttons
             self.navbar.dashboard_btn.clicked.connect(lambda: [self.stack.setCurrentIndex(0), self.navbar.set_dashboard_active()])
             self.navbar.activity_btn.clicked.connect(lambda: [self.stack.setCurrentIndex(1), self.navbar.set_activity_active()])
-            self.navbar.security_btn.clicked.connect(lambda: [self.stack.setCurrentWidget(self.security_view), self.navbar.set_security_active()])
+            if self.navbar.security_btn and self.security_view:
+                self.navbar.security_btn.clicked.connect(lambda: [self.stack.setCurrentWidget(self.security_view), self.navbar.set_security_active()])
 
             # Create main layout
             central_widget = QWidget()
