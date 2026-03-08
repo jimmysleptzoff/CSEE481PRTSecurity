@@ -3,7 +3,50 @@ from PyQt5.QtWidgets import (
     QPushButton, QComboBox, QCheckBox, QGridLayout
 )
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QPainter, QPen, QColor
 from gui.track_view import TrackView
+
+
+class XCheckBox(QCheckBox):
+    """Checkbox that shows an X when checked, with a border around the indicator box."""
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet(
+            """
+            XCheckBox {
+                color: #002855;
+                font-size: 14px;
+            }
+            """
+        )
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        indicator_size = 16
+        padding = 4
+        indicator_x = padding
+        indicator_y = (self.height() - indicator_size) // 2
+        # Draw indicator box with border
+        painter.setPen(QPen(QColor("#002855"), 2))
+        painter.setBrush(QColor("white"))
+        painter.drawRect(indicator_x, indicator_y, indicator_size, indicator_size)
+        if self.isChecked():
+            pad = 3
+            painter.drawLine(
+                indicator_x + pad, indicator_y + pad,
+                indicator_x + indicator_size - pad, indicator_y + indicator_size - pad
+            )
+            painter.drawLine(
+                indicator_x + indicator_size - pad, indicator_y + pad,
+                indicator_x + pad, indicator_y + indicator_size - pad
+            )
+        # Draw label (cart ID text)
+        text_rect = self.rect().adjusted(indicator_size + padding * 2, 0, -padding, 0)
+        painter.setPen(QColor("#002855"))
+        painter.setFont(self.font())
+        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self.text())
 from models.db import get_cart_info, remove_cart_request
 from models.api import send_cart_to_station
 from models.api import remove_cart
@@ -425,28 +468,10 @@ class HomeView(QWidget):
         self.cart_checkboxes.clear()
 
         # Create new checkboxes for each cart (two columns)
+        # Default: no carts selected (False when previously_checked is empty)
         for idx, cid in enumerate(sorted(cart_ids)):
-            cb = QCheckBox(cid)
-            cb.setChecked(cid in previously_checked if previously_checked else True)
-            cb.setStyleSheet(
-                """
-                QCheckBox {
-                    color: #002855;
-                    font-size: 14px;
-                    border: none;
-                }
-                QCheckBox::indicator {
-                    width: 16px;
-                    height: 16px;
-                    border: none;
-                    border-radius: 3px;
-                    background-color: white;
-                }
-                QCheckBox::indicator:checked {
-                    background-color: #EAAA00;
-                }
-                """
-            )
+            cb = XCheckBox(cid)
+            cb.setChecked(cid in previously_checked)
             cb.stateChanged.connect(self.on_test_bench_checkbox_changed)
             self.cart_checkboxes[cid] = cb
             row, col = idx // 2, idx % 2
