@@ -259,13 +259,28 @@ def update_cart_destination(barcode, destination):
     Update cart destination directly in PRTCarts table.
     Backend will read this when PLC requests routing info.
 
-    :param barcode: Cart barcode (e.g., "0001")
+    :param barcode: Cart barcode (e.g., "0001" or "1")
     :param destination: Station number (1-4)
     :return: True on success, False on failure
     """
     try:
+        barcode = str(barcode).zfill(4) if barcode else barcode
         conn = get_connection()
         cursor = conn.cursor()
+
+        # When sending to a station (1-4), clear any pending removal commands
+        # so they don't overwrite this destination when the backend polls.
+        if 1 <= destination <= 4:
+            # Match both "0001" and "1" in case of legacy/inconsistent formats
+            unpadded = barcode.lstrip('0') or '0'
+            cursor.execute(
+                "DELETE FROM PRTRemoveCart WHERE barcode = %s OR barcode = %s",
+                (barcode, unpadded)
+            )
+            cleared = cursor.rowcount
+            if cleared > 0:
+                print(f"Cleared {cleared} pending removal command(s) for cart {barcode}")
+
         cursor.execute(
             "UPDATE PRTCarts SET destination = %s WHERE barcode = %s",
             (destination, barcode)

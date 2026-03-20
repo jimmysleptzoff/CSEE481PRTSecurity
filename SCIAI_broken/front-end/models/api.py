@@ -27,7 +27,7 @@ def send_cart_to_station(cart_id, station_id):
     Update cart destination directly in database.
     Backend will read this when PLC requests routing info.
 
-    :param cart_id: Cart barcode (e.g., "0001")
+    :param cart_id: Cart barcode (e.g., "0001" or "1")
     :param station_id: Station name (e.g., "Station_1")
     """
     station_map = {
@@ -42,16 +42,19 @@ def send_cart_to_station(cart_id, station_id):
         print(f"Invalid station: {station_id}")
         return False
 
+    # Normalize barcode to 4 digits to match PRTCarts (e.g., "1" -> "0001")
+    barcode = str(cart_id).zfill(4) if cart_id else cart_id
+
     # Update destination in PRTCarts table
-    success = update_cart_destination(cart_id, destination)
+    success = update_cart_destination(barcode, destination)
 
     # Log the action to cart_logs for activity tracking
     if success:
-        log_event(cart_id, station_id, "Destination Updated", "Command")
-        print(f"Cart {cart_id} destination set to {station_id}")
+        log_event(barcode, station_id, "Destination Updated", "Command")
+        print(f"Cart {barcode} destination set to {station_id}")
     else:
-        log_event(cart_id, station_id, "Update Failed", "Error")
-        print(f"Failed to update cart {cart_id} destination")
+        log_event(barcode, station_id, "Update Failed", "Error")
+        print(f"Failed to update cart {barcode} destination")
 
     return success
 
@@ -61,18 +64,21 @@ def remove_cart(cart_id, area):
     Insert cart removal command into database.
     Backend will poll PRTRemoveCart and process the command.
 
-    :param cart_id: Cart barcode (e.g., "0001")
+    :param cart_id: Cart barcode (e.g., "0001" or "1")
     :param area: Removal area number (5-9)
     """
+    # Normalize barcode to 4 digits to match PRTCarts
+    barcode = str(cart_id).zfill(4) if cart_id else cart_id
+
     # Insert removal command into PRTRemoveCart table
-    success = insert_remove_cart_command(cart_id, area)
+    success = insert_remove_cart_command(barcode, area)
 
     # Log the action to cart_logs for activity tracking
     if success:
-        log_event(cart_id, f"Remove_Area_{area}", "Removal Requested", "Command")
-        print(f"Cart {cart_id} removal requested to area {area}")
+        log_event(barcode, f"Remove_Area_{area}", "Removal Requested", "Command")
+        print(f"Cart {barcode} removal requested to area {area}")
     else:
-        log_event(cart_id, f"Remove_Area_{area}", "Removal Failed", "Error")
-        print(f"Failed to request removal for cart {cart_id}")
+        log_event(barcode, f"Remove_Area_{area}", "Removal Failed", "Error")
+        print(f"Failed to request removal for cart {barcode}")
 
     return success

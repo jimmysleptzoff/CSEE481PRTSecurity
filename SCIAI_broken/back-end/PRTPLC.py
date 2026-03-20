@@ -7,7 +7,9 @@ class PRTPLC(PLC):
     """
     def __init__(self):
         super().__init__(PRT_PLC_IP_ADDRESS)
-        self._last_transaction_id = {1: None, 2: None}
+        # Use (transaction_id, barcode) as dedup key — only skip when BOTH match.
+        # This prevents skipping a new cart when the PLC reuses transaction IDs.
+        self._last_request_key = {1: None, 2: None}
         self.connect()
 
     def read_sorter_request(self, sorter_num: int):
@@ -17,11 +19,6 @@ class PRTPLC(PLC):
 
         if data['END'] == 1:
             transaction_id = data['TRANSACTION_ID']
-            # Skip duplicate requests — PLC re-sends the same transaction_id
-            # when the cart hasn't physically moved yet
-            if transaction_id == self._last_transaction_id.get(sorter_num):
-                return None
-            self._last_transaction_id[sorter_num] = transaction_id
 
             raw_barcode = data['BARCODE']
             # Normalize barcode: sorter 1 scanner sends barcode + \r terminator, but the PLC
@@ -33,8 +30,17 @@ class PRTPLC(PLC):
             # Zero-pad to 4 digits (e.g., '8' -> '0008')
             barcode = barcode.zfill(4) if barcode else raw_barcode
 
+            # Skip duplicate requests — PLC re-sends same (transaction_id, barcode) when
+            # the cart hasn't physically moved. Use both to avoid skipping a new cart
+            # when the PLC reuses transaction IDs across different carts.
+            request_key = (transaction_id, barcode)
+            if request_key == self._last_request_key.get(sorter_num):
+                # Still clear END so PLC can proceed; we already responded to this request
+                self.write_tag(f'SORTER_{sorter_num}_REQUEST.END', 0)
+                return None
+            self._last_request_key[sorter_num] = request_key
+
             print(f"SORTER_REQUEST_{sorter_num}: END: 1, barcode: {barcode}, transaction_id: {transaction_id}")
-            #Clear tag
             self.write_tag(f'SORTER_{sorter_num}_REQUEST.END', 0)
             return barcode, transaction_id
 
